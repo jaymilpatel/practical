@@ -8,11 +8,11 @@ if( !defined( 'DEMOTHEME_POST_POST_TYPE' ) ) {
 if( !defined( 'DEMOTHEME_PAGE_POST_TYPE' ) ) {
     define( 'DEMOTHEME_PAGE_POST_TYPE', 'page' );
 }
-if( !defined( 'DEMOTHEME_CUSTOM_POST_POST_TYPE' ) ) {
-    define( 'DEMOTHEME_CUSTOM_POST_POST_TYPE', 'custom_post' );
+if( !defined( 'DEMOTHEME_EVENT_POST_TYPE' ) ) {
+    define( 'DEMOTHEME_EVENT_POST_TYPE', 'event' );
 }
-if( !defined( 'DEMOTHEME_CUSTOM_POST_POST_TAX' ) ) {
-    define( 'DEMOTHEME_CUSTOM_POST_POST_TAX', 'custom_post_tax' );
+if( !defined( 'DEMOTHEME_CITY_POST_TAX' ) ) {
+    define( 'DEMOTHEME_CITY_POST_TAX', 'city' );
 }
 if( !defined( 'DEMOTHEME_META_PREFIX' ) ) {
     define( 'DEMOTHEME_META_PREFIX', '_demotheme_' );

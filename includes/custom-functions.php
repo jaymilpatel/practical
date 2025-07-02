@@ -149,3 +149,85 @@ add_action('admin_head', 'demotheme_admin_favicon');
  * add filter to add shortcode in widget
  */
 add_filter( 'widget_text', 'do_shortcode' );
+
+/*
+ * Disable Gunturnburg Editor
+ */
+
+add_filter('use_block_editor_for_post', '__return_false');
+
+/* 
+ * Create meta box for event post type
+ */ 
+function event_custom_meta_boxes() {
+    add_meta_box('event_details', 'Event Details', 'render_event_meta_box', 'event', 'normal', 'default');
+}
+add_action('add_meta_boxes', 'event_custom_meta_boxes');
+
+function render_event_meta_box($post) {
+    wp_nonce_field('save_event_meta', 'event_meta_nonce');
+    $start = get_post_meta($post->ID, '_event_start', true);
+    $end = get_post_meta($post->ID, '_event_end', true);
+    $name  = get_post_meta($post->ID, '_organizer_name', true);
+    $email = get_post_meta($post->ID, '_organizer_email', true);
+    $phone = get_post_meta($post->ID, '_organizer_phone', true);
+    $venue = get_post_meta($post->ID, '_event_venue', true);
+    $price = get_post_meta($post->ID, '_event_price', true);
+
+    ?>
+    <label>Start Date/Time:
+        <input type="datetime-local" name="event_start" id="event_start" value="<?= esc_attr($start) ?>" />
+        <div class="error-msg" id="error-event_start" style="color:red;"></div>
+    </label><br>
+
+    <label>End Date/Time:
+        <input type="datetime-local" name="event_end" id="event_end" value="<?= esc_attr($end) ?>" />
+        <div class="error-msg" id="error-event_end" style="color:red;"></div>
+    </label><br>
+
+    <h3>Organizer Details</h3>
+
+    <label for="organizer_name">Name:</label><br>
+    <input type="text" name="organizer_name" id="organizer_name" value="<?= esc_attr($name); ?>"><br>
+    <div class="error-msg" id="error-organizer_name" style="color:red;"></div><br>
+
+    <label for="organizer_email">Email:</label><br>
+    <input type="email" name="organizer_email" id="organizer_email" value="<?= esc_attr($email); ?>"><br>
+    <div class="error-msg" id="error-organizer_email" style="color:red;"></div><br>
+
+    <label for="organizer_phone">Phone (format: +91-XXX-XXX-XXXX):</label><br>
+    <input type="text" name="organizer_phone" id="organizer_phone" value="<?= esc_attr($phone); ?>"><br>
+    <div class="error-msg" id="error-organizer_phone" style="color:red;"></div><br>
+
+    <label>Venue + Coordinates:
+        <input type="text" name="event_venue" id="event_venue" value="<?= esc_attr($venue) ?>" />
+        <div class="error-msg" id="error-event_venue" style="color:red;"></div>
+    </label><br>
+
+    <label>Ticket Price:
+        <input type="number" name="event_price" id="event_price" value="<?= esc_attr($price) ?>" step="0.01" />
+        <div class="error-msg" id="error-event_price" style="color:red;"></div>
+    </label>
+
+    <?php
+}
+
+// Save Meta box field for event post type
+function save_event_meta_data($post_id) {
+    if (!isset($_POST['event_meta_nonce']) || !wp_verify_nonce($_POST['event_meta_nonce'], 'save_event_meta')) return;
+
+    update_post_meta($post_id, '_event_start', sanitize_text_field($_POST['event_start']));
+    update_post_meta($post_id, '_event_end', sanitize_text_field($_POST['event_end']));
+    if (isset($_POST['organizer_name'])) {
+        update_post_meta($post_id, '_organizer_name', sanitize_text_field($_POST['organizer_name']));
+    }
+    if (isset($_POST['organizer_email'])) {
+        update_post_meta($post_id, '_organizer_email', sanitize_email($_POST['organizer_email']));
+    }
+    if (isset($_POST['organizer_phone'])) {
+        update_post_meta($post_id, '_organizer_phone', sanitize_text_field($_POST['organizer_phone']));
+    }
+    update_post_meta($post_id, '_event_venue', sanitize_text_field($_POST['event_venue']));
+    update_post_meta($post_id, '_event_price', floatval($_POST['event_price']));
+}
+add_action('save_post', 'save_event_meta_data');

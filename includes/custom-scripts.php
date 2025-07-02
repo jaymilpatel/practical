@@ -9,7 +9,7 @@ function demotheme_admin_scripts() {
     // Load our admin stylesheet.
     wp_enqueue_style( 'demotheme-admin-style', get_template_directory_uri() . '/css/admin-style.css' );
     // Load our admin script.
-    wp_enqueue_script( 'demotheme-admin-script', get_template_directory_uri() . '/js/admin-script.js' );
+    wp_enqueue_script( 'demotheme-admin-script', get_template_directory_uri() . '/js/admin-script.js', array(),time());
     //localize admin script
     wp_localize_script( 'demotheme-admin-script', 'DEMOTHEMEADMIN', array(
                                                                     'ajaxurl' => admin_url('admin-ajax.php', ( is_ssl() ? 'https' : 'http')),
@@ -25,7 +25,7 @@ function demotheme_public_scripts() {
     // Load our public style stylesheet.
     wp_enqueue_style( 'demotheme-public-style', get_template_directory_uri() . '/css/public-style.css', array(), NULL );
     // Load main jquery
-    wp_enqueue_script( 'jquery', array(), NULL );
+    // wp_enqueue_script( 'jquery', array(), NULL );
     // Load public script
     wp_enqueue_script( 'demotheme-public-script', get_template_directory_uri() . '/js/public-script.js', array(), NULL );
     //localize public script
