@@ -1,0 +1,16 @@
+body.login #login {width:460px;}
+body.login #login form p { margin-bottom: 15px;}
+body.login form { background: rgba(0, 0, 0, 0.2); padding:40px;}
+body.login label { color:#fff;}
+body.login div#login form#loginform input[type=text],
+body.login div#login form#loginform input[type=password]{padding:12px 16px;}
+body.login div#login form#loginform input#wp-submit {background-color: #d37e18;border: medium none;border-radius: 0;box-shadow: none;padding: 0 36px 2px;text-shadow: none;-webkit-transition: all 0.2s ease-in-out;-moz-transition: all 0.2s ease-in-out;-o-transition: all 0.2s ease-in-out;-ms-transition: all 0.2s ease-in-out;transition: all 0.2s ease-in-out;}
+body.login div#login form#loginform input#wp-submit:hover {background-color:#0f535b;}
+.login #backtoblog a, .login #nav a {color:#fff;}
+p.custom-footer-link {width: 320px;padding: 10px 0 0;margin: 30px auto 0 auto;color:#aaa;text-align: center;}
+p.custom-footer-link a {text-decoration: none;}
+@media all and (max-width:767px){
+    body.login #login { width:300px;}
+    body.login form { padding:20px;}
+    body.login div#login form#loginform input[type=text],body.login div#login form#loginform input[type=password]{padding:6px 8px;}
+}
