@@ -51,17 +51,43 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
     const form = document.getElementById('post');
+    const venueType = document.getElementById('venue_type');
+    const onlineFields = document.getElementById('online_fields');
+    const offlineFields = document.getElementById('offline_fields');
     const fields = [
         'event_start',
         'event_end',
         'organizer_name',
         'organizer_email',
         'organizer_phone',
-        'event_venue',
+        'venue_type',
         'event_price'
     ];
+    function showError(id, message) {
+        document.getElementById(id).textContent = message;
+    }
+    function clearErrors() {
+        document.querySelectorAll('.error-msg').forEach(el => el.textContent = '');
+    }
+     function toggleVenueFields() {
+        if (venueType.value === 'online') {
+            onlineFields.style.display = 'block';
+            offlineFields.style.display = 'none';
+        } else if (venueType.value === 'offline') {
+            onlineFields.style.display = 'none';
+            offlineFields.style.display = 'block';
+        } else {
+            onlineFields.style.display = 'none';
+            offlineFields.style.display = 'none';
+        }
+    }
+
+    venueType.addEventListener('change', toggleVenueFields);
+    toggleVenueFields();
+
 
     form.addEventListener('submit', function (e) {
+    	clearErrors();
         let valid = true;
 
         // Clear old errors
@@ -87,8 +113,21 @@ document.addEventListener('DOMContentLoaded', function () {
 
 		        }
 		    }
-        });
 
+        });
+        if (venueType.value === 'online') {
+            const url = document.getElementById('online_url').value.trim();
+            if (!url) {
+                showError('error-online_url', 'Online URL is required.');
+                valid = false;
+            }
+        } else if (venueType.value === 'offline') {
+            const address = document.getElementById('offline_address').value.trim();
+            if (!address) {
+                showError('error-offline_address', 'Offline address is required.');
+                valid = false;
+            }
+        }
         if (!valid) {
             e.preventDefault(); // Stop form submission
         }

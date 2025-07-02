@@ -171,8 +171,10 @@ function render_event_meta_box($post) {
     $name  = get_post_meta($post->ID, '_organizer_name', true);
     $email = get_post_meta($post->ID, '_organizer_email', true);
     $phone = get_post_meta($post->ID, '_organizer_phone', true);
-    $venue = get_post_meta($post->ID, '_event_venue', true);
     $price = get_post_meta($post->ID, '_event_price', true);
+    $venue_type = get_post_meta($post->ID, '_venue_type', true) ?: 'offline';
+    $online_url = get_post_meta($post->ID, '_online_url', true);
+    $offline_address = get_post_meta($post->ID, '_offline_address', true);
 
     ?>
     <label>Start Date/Time:
@@ -199,10 +201,25 @@ function render_event_meta_box($post) {
     <input type="text" name="organizer_phone" id="organizer_phone" value="<?= esc_attr($phone); ?>"><br>
     <div class="error-msg" id="error-organizer_phone" style="color:red;"></div><br>
 
-    <label>Venue + Coordinates:
-        <input type="text" name="event_venue" id="event_venue" value="<?= esc_attr($venue) ?>" />
-        <div class="error-msg" id="error-event_venue" style="color:red;"></div>
-    </label><br>
+    <label>Venue Type:</label>
+    <select name="venue_type" id="venue_type">
+        <option value="offline" <?= selected($venue_type, 'offline') ?>>Offline</option>
+        <option value="online" <?= selected($venue_type, 'online') ?>>Online</option>
+    </select>
+    <div class="error-msg" id="error-venue_type" style="color:red;"></div>
+    <br><br>
+
+    <div id="offline_fields" style="display: <?= $venue_type === 'offline' ? 'block' : 'none' ?>;">
+        <label for="offline_address">Offline Venue Address:</label>
+        <input type="text" name="offline_address" id="offline_address" value="<?= esc_attr($offline_address) ?>">
+        <div class="error-msg" id="error-offline_address" style="color:red;"></div>
+    </div>
+
+    <div id="online_fields" style="display: <?= $venue_type === 'online' ? 'block' : 'none' ?>;">
+        <label for="online_url">Online Event URL:</label>
+        <input type="url" name="online_url" id="online_url" value="<?= esc_attr($online_url) ?>">
+        <div class="error-msg" id="error-online_url" style="color:red;"></div>
+    </div>
 
     <label>Ticket Price:
         <input type="number" name="event_price" id="event_price" value="<?= esc_attr($price) ?>" step="0.01" />
@@ -229,5 +246,142 @@ function save_event_meta_data($post_id) {
     }
     update_post_meta($post_id, '_event_venue', sanitize_text_field($_POST['event_venue']));
     update_post_meta($post_id, '_event_price', floatval($_POST['event_price']));
+    $venue_type = sanitize_text_field($_POST['venue_type']);
+    update_post_meta($post_id, '_venue_type', $venue_type);
+
+    if ($venue_type === 'online') {
+        update_post_meta($post_id, '_online_url', esc_url_raw($_POST['online_url']));
+        delete_post_meta($post_id, '_offline_address');
+    } else {
+        update_post_meta($post_id, '_offline_address', sanitize_text_field($_POST['offline_address']));
+        delete_post_meta($post_id, '_online_url');
+    }
 }
 add_action('save_post', 'save_event_meta_data');
+
+
+/* 
+ *  Create a shotcode for event submit by front end side
+ */
+
+
+
+function event_submission_form() {
+    ob_start(); ?>
+    <form id="eventForm" enctype="multipart/form-data">
+        <input type="text" name="title" placeholder="Event Title"  /><br>
+
+        <input type="datetime-local" name="start" id="start"  /><br>
+        <div class="error" id="error-start"></div>
+
+        <input type="datetime-local" name="end" id="end"  /><br>
+        <div class="error" id="error-end"></div>
+
+        <input type="text" name="organizer_name" id="organizer_name" placeholder="Organizer Name"  /><br>
+        <div class="error" id="error-organizer_name"></div>
+
+        <input type="email" name="organizer_email" id="organizer_email" placeholder="Organizer Email"  /><br>
+        <div class="error" id="error-organizer_email"></div>
+
+        <input type="text" name="organizer_phone" id="organizer_phone" placeholder="Organizer Phone (+91-XXX-XXX-XXXX)"  /><br>
+        <div class="error" id="error-organizer_phone"></div>
+
+        <label for="venue_type">Venue Type:</label><br>
+        <select name="venue_type" id="venue_type" >
+            <option value="">-- Select Venue Type --</option>
+            <option value="online">Online</option>
+            <option value="offline">Offline</option>
+        </select>
+        <div class="error" id="error-venue_type"></div><br>
+
+        <div id="online_input" style="display:none;">
+            <input type="url" name="online_url" placeholder="Event URL" />
+            <div class="error" id="error-online_url"></div>
+        </div>
+
+        <div id="offline_input" style="display:none;">
+            <input type="text" name="offline_address" placeholder="Physical Address" />
+            <div class="error" id="error-offline_address"></div>
+        </div>
+
+        <input type="number" name="price" placeholder="Price" step="0.01"  /><br>
+        <div class="error" id="error-price"></div>
+
+        <input type="file" name="image" accept="image/png, image/jpeg"  /><br>
+        <div class="error" id="error-image"></div>
+
+        <input type="text" name="honeypot" style="display:none;" />
+        <button type="submit">Submit</button>
+    </form>
+
+    <style>
+        .error { color: red; font-size: 0.9em; }
+    </style>
+
+    <?php
+    return ob_get_clean();
+}
+add_shortcode('event_form', 'event_submission_form');
+
+
+add_action('rest_api_init', function() {
+    register_rest_route('event/v1', '/submit', [
+        'methods' => 'POST',
+        'callback' => 'handle_event_submission',
+        'permission_callback' => '__return_true'
+    ]);
+});
+
+function handle_event_submission(WP_REST_Request $request) {
+    $params = $request->get_file_params() + $request->get_params();
+    if (!empty($params['honeypot'])) return new WP_Error('bot', 'Bot detected');
+
+    $post_id = wp_insert_post([
+        'post_type' => 'event',
+        'post_title' => sanitize_text_field($params['title']),
+        'post_status' => 'pending'
+    ]);
+
+    if (!$post_id) return new WP_Error('fail', 'Could not create post');
+
+    update_post_meta($post_id, '_event_start', sanitize_text_field($params['start']));
+    update_post_meta($post_id, '_event_end', sanitize_text_field($params['end']));
+    update_post_meta($post_id, '_organizer_name', sanitize_text_field($params['organizer_name']));
+    update_post_meta($post_id, '_organizer_email', sanitize_email($params['organizer_email']));
+    update_post_meta($post_id, '_organizer_phone', sanitize_text_field($params['organizer_phone']));
+    $venue_type = sanitize_text_field($params['venue_type']);
+    update_post_meta($post_id, '_venue_type', $venue_type);
+
+    if ($venue_type === 'online') {
+        update_post_meta($post_id, '_online_url', esc_url_raw($params['online_url']));
+        delete_post_meta($post_id, '_offline_address');
+    } else {
+        update_post_meta($post_id, '_offline_address', sanitize_text_field($params['offline_address']));
+        delete_post_meta($post_id, '_online_url');
+    }
+    update_post_meta($post_id, '_event_price', floatval($params['price']));
+
+    if (!empty($_FILES['image']) && !$_FILES['image']['error']) {
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+        $upload = wp_handle_upload($_FILES['image'], ['test_form' => false]);
+        if (!isset($upload['error'])) {
+            $attachment = [
+                'post_mime_type' => $upload['type'],
+                'post_title' => basename($upload['file']),
+                'post_content' => '',
+                'post_status' => 'inherit'
+            ];
+            $attach_id = wp_insert_attachment($attachment, $upload['file'], $post_id);
+            require_once ABSPATH . 'wp-admin/includes/image.php';
+            $attach_data = wp_generate_attachment_metadata($attach_id, $upload['file']);
+            wp_update_attachment_metadata($attach_id, $attach_data);
+            set_post_thumbnail($post_id, $attach_id);
+        }
+    }
+
+    return ['success' => true, 'post_id' => $post_id];
+}
+
+
+
+
