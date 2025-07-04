@@ -59,7 +59,7 @@ function demotheme_filter_search( $query ) {
     }
     return $query;
 }
-add_filter( 'pre_get_posts', 'demotheme_filter_search' );
+// add_filter( 'pre_get_posts', 'demotheme_filter_search' );
 
 
 /*
@@ -385,3 +385,299 @@ function handle_event_submission(WP_REST_Request $request) {
 
 
 
+/* 
+ * Register custom post status
+ */
+
+
+function register_custom_event_statuses() {
+    register_post_status('pending_review', [
+        'label'                     => _x('Pending Review', 'post'),
+        'public'                    => true,
+        'label_count'               => _n_noop('Pending Review <span class="count">(%s)</span>', 'Pending Review <span class="count">(%s)</span>'),
+        'post_type'                 => ['event'],
+        'show_in_admin_all_list'    => true,
+        'show_in_admin_status_list' => true,
+    ]);
+
+    register_post_status('scheduled', [
+        'label'                     => _x('Scheduled', 'post'),
+        'public'                    => true,
+        'label_count'               => _n_noop('Scheduled <span class="count">(%s)</span>', 'Scheduled <span class="count">(%s)</span>'),
+        'post_type'                 => ['event'],
+        'show_in_admin_all_list'    => true,
+        'show_in_admin_status_list' => true,
+    ]);
+
+    register_post_status('rejected', [
+        'label'                     => _x('Rejected', 'post'),
+        'public'                    => false,
+        'label_count'               => _n_noop('Rejected <span class="count">(%s)</span>', 'Rejected <span class="count">(%s)</span>'),
+        'post_type'                 => ['event'],
+        'show_in_admin_all_list'    => true,
+        'show_in_admin_status_list' => true,
+    ]);
+}
+add_action('init', 'register_custom_event_statuses');
+
+
+/*
+ * Add Status Options to the Post Editor
+ */
+function add_event_custom_status_dropdown() {
+    global $post;
+    if ($post->post_type !== 'event') return;
+
+    $statuses = [
+        'pending_review' => 'Pending Review',
+        'scheduled' => 'Scheduled',
+        'rejected' => 'Rejected'
+    ];
+    ?>
+    <script>
+        jQuery(document).ready(function($) {
+            var select = $("select#post_status");
+            <?php foreach ($statuses as $key => $label): ?>
+                select.append("<option value='<?php echo esc_attr($key); ?>' <?php selected($post->post_status, $key); ?>><?php echo esc_html($label); ?></option>");
+            <?php endforeach; ?>
+        });
+    </script>
+    <?php
+}
+add_action('post_submitbox_misc_actions', 'add_event_custom_status_dropdown');
+
+/*
+ * Display Custom Status Badges in Admin List
+ */
+function add_event_custom_status_badges($column, $post_id) {
+    if ($column == 'title') {
+        $status = get_post_status($post_id);
+        $colors = [
+            'pending_review' => 'orange',
+            'scheduled'      => 'blue',
+            'rejected'       => 'red'
+        ];
+
+        // if (array_key_exists($status, $colors)) {
+            echo '<span abc style="background: ' . $colors[$status] . '; color: white; padding: 2px 6px; border-radius: 3px; margin-left: 5px;">' . ucfirst(str_replace('_', ' ', $status)) . '</span>';
+        // }
+    }
+}
+add_action('manage_event_posts_custom_column', 'add_event_custom_status_badges', 10, 2);
+
+/*
+ * Filter by Event Date (past/future)
+ */
+
+function add_event_date_filter() {
+    global $typenow;
+    if ($typenow === 'event') {
+        $selected = $_GET['event_time'] ?? '';
+        ?>
+        <select name="event_time">
+            <option value="">All Dates</option>
+            <option value="future" <?php selected($selected, 'future'); ?>>Future Events</option>
+            <option value="past" <?php selected($selected, 'past'); ?>>Past Events</option>
+        </select>
+        <?php
+    }
+}
+add_action('restrict_manage_posts', 'add_event_date_filter');
+
+function filter_event_query_by_date($query) {
+    global $pagenow;
+    if (is_admin() && $query->is_main_query() && $query->get('post_type') === 'event' && $pagenow === 'edit.php') {
+        $filter = $_GET['event_time'] ?? '';
+        if ($filter === 'future') {
+            $query->set('meta_query', [[
+                'key'     => '_event_start',
+                'value'   => current_time('Y-m-d H:i'),
+                'compare' => '>=',
+                'type'    => 'DATETIME'
+            ]]);
+        } elseif ($filter === 'past') {
+            $query->set('meta_query', [[
+                'key'     => '_event_start',
+                'value'   => current_time('Y-m-d H:i'),
+                'compare' => '<',
+                'type'    => 'DATETIME'
+            ]]);
+        }
+    }
+}
+// add_action('pre_get_posts', 'filter_event_query_by_date');
+
+/*
+ * Filter by City Taxonomy
+ */
+function add_city_taxonomy_filter() {
+    global $typenow;
+    if ($typenow === 'event') {
+        wp_dropdown_categories([
+            'show_option_all' => 'All Cities',
+            'taxonomy'        => 'city',
+            'name'            => 'city',
+            'orderby'         => 'name',
+            'selected'        => $_GET['city'] ?? '',
+            'hierarchical'    => true,
+            'depth'           => 3,
+            'show_count'      => true,
+            'hide_empty'      => true,
+            'value_field'     => 'name'
+        ]);
+    }
+}
+add_action('restrict_manage_posts', 'add_city_taxonomy_filter');
+function filter_events_by_city_in_admin($query) {
+    global $pagenow;
+
+    if (
+        is_admin() &&
+        $query->is_main_query() &&
+        $pagenow === 'edit.php' &&
+        isset($_GET['post_type']) && $_GET['post_type'] === 'event' &&
+        isset($_GET['city']) && is_numeric($_GET['city']) && $_GET['city'] != 0
+    ) {
+       
+         $taxquery = array(
+                        array(
+                            'taxonomy' => 'city',
+                            'field' => 'term_id',
+                            'terms' => array( $_GET['city']),
+                            'operator'=> 'IN'
+                        )
+                    );
+                        $query->set( 'tax_query', $taxquery );
+    }
+}
+// add_action('pre_get_posts', 'filter_events_by_city_in_admin');
+
+
+
+function add_event_admin_columns($columns) {
+
+    $columns['_organizer_name'] = 'Organization Name';
+    $new_columns = [];
+    foreach ($columns as $key => $value) {
+        $new_columns[$key] = $value;
+        if ($key === 'title') {
+            $new_columns['event_status'] = 'Status';
+            $new_columns['event_date'] = 'Start Date';
+        }
+    }
+    return $new_columns;
+}
+add_filter('manage_event_posts_columns', 'add_event_admin_columns');
+
+
+function show_event_column_data($column, $post_id) {
+    if ($column === '_organizer_name') {
+        $value = get_post_meta($post_id, '_organizer_name', true);
+        echo esc_html($value);
+    }
+    if ($column === 'event_status') {
+        $status = get_post_status($post_id);
+        $labels = [
+            'pending_review' => 'Pending Review',
+            'scheduled' => 'Scheduled',
+            'rejected' => 'Rejected',
+            'publish' => 'Published',
+            'draft' => 'Draft'
+        ];
+
+        $colors = [
+            'pending_review' => 'orange',
+            'scheduled' => 'blue',
+            'rejected' => 'red',
+            'publish' => 'green',
+            'draft' => '#ccc'
+        ];
+
+        $label = $labels[$status] ?? $status;
+        $color = $colors[$status] ?? '#999';
+
+        echo "<span style='background:$color; color:white; padding:2px 6px; border-radius:3px;'>$label</span>";
+    }
+
+    if ($column === 'event_date') {
+        $start = get_post_meta($post_id, '_event_start', true);
+        echo $start ? date('M d, Y H:i', strtotime($start)) : '—';
+    }
+}
+add_action('manage_event_posts_custom_column', 'show_event_column_data', 10, 2);
+
+function make_event_columns_sortable($columns) {
+    $columns['_organizer_name'] = '_organizer_name';
+    $columns['event_date'] = 'event_date';
+    return $columns;
+}
+add_filter('manage_edit-event_sortable_columns', 'make_event_columns_sortable');
+
+function sort_events_by_organization_name($query) {
+    if (!is_admin() || !$query->is_main_query()) {
+        return;
+    }
+    if (
+        is_admin() &&
+        isset($_GET['post_type']) && $_GET['post_type'] === 'event' &&
+        $query->is_main_query()
+    ) {
+        if( !isset($_GET['post_status']) && $_GET['post_status'] == '')
+        $query->set('post_status', ['publish', 'draft', 'pending', 'private', 'scheduled', 'pending_review', 'rejected']);
+    }
+    if (
+        isset($_GET['orderby']) && $_GET['orderby'] === '_organizer_name'
+    ) {
+        $query->set('meta_key', '_organizer_name');
+        $query->set('orderby', 'meta_value'); // or meta_value_num if it's numeric
+    }
+    if ($query->get('orderby') === 'event_date') {
+        $query->set('meta_key', '_event_start');
+        $query->set('orderby', 'meta_value');
+    }
+}
+add_action('pre_get_posts', 'sort_events_by_organization_name');
+
+
+/* 
+ * Add custom Role & Capability Management
+ */ 
+
+
+
+function add_custom_event_roles() {
+    // Event Submitter
+   add_role('event_submitter', 'Event Submitter', [
+        'read' => true,
+        'edit_events' => true,
+        'edit_event' => true,
+        'delete_event' => false,
+        'publish_events' => false,
+    ]);
+
+    // Moderator (can review & publish others’ events)
+    add_role('event_moderator', 'Event Moderator', [
+        'read' => true,
+        'edit_events' => true,
+        'edit_others_events' => true,
+        'publish_events' => true,
+        'delete_events' => true,
+        'delete_others_events' => true,
+    ]);
+
+    // Admin with full access
+    add_role('event_admin', 'Event Admin', [
+        'read' => true,
+        'edit_events' => true,
+        'edit_others_events' => true,
+        'publish_events' => true,
+        'delete_events' => true,
+        'delete_others_events' => true,
+        'read_private_events' => true,
+        'edit_private_events' => true,
+        'edit_published_events' => true,
+        'delete_private_events' => true,
+        'delete_published_events' => true,
+    ]);
+}
+add_action('init', 'add_custom_event_roles');

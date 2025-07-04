@@ -10,8 +10,8 @@ document.addEventListener('DOMContentLoaded', function () {
     // Set min to current date & time
     const now = new Date();
     const minDateTime = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
-    startInput.min = minDateTime;
-    endInput.min = minDateTime;
+    // startInput.min = minDateTime;
+    // endInput.min = minDateTime;
 
     function validateNoWeekend(input) {
         input.addEventListener('change', function () {
@@ -33,8 +33,8 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    validateNoWeekend(startInput);
-    validateNoWeekend(endInput);
+    // validateNoWeekend(startInput);
+    // validateNoWeekend(endInput);
 
 
     const phoneInput = document.getElementById('organizer_phone');

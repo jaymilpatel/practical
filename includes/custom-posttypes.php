@@ -37,6 +37,23 @@ function demotheme_register_post_types() {
                             'menu_icon'          => 'dashicons-pressthis',
                             'supports'           => array( 'title', 'editor', 'excerpt', 'thumbnail', 'page-attributes' ),
                             'show_in_rest'       => true,
+                            'capability_type' => ['event', 'events'], // singular/plural
+                            'map_meta_cap' => true,
+                            'capabilities' => [
+                                'edit_post'           => 'edit_event',
+                                'read_post'           => 'read_event',
+                                'delete_post'         => 'delete_event',
+                                'edit_posts'          => 'edit_events',
+                                'edit_others_posts'   => 'edit_others_events',
+                                'publish_posts'       => 'publish_events',
+                                'read_private_posts'  => 'read_private_events',
+                                'delete_posts'        => 'delete_events',
+                                'delete_private_posts'=> 'delete_private_events',
+                                'delete_published_posts' => 'delete_published_events',
+                                'delete_others_posts' => 'delete_others_events',
+                                'edit_private_posts'  => 'edit_private_events',
+                                'edit_published_posts'=> 'edit_published_events',
+                            ]
                         );
 
     register_post_type( DEMOTHEME_EVENT_POST_TYPE, $eventpost_args );
@@ -62,6 +79,7 @@ function demotheme_register_post_types() {
                     'show_ui'           => true,
                     'show_admin_column' => true,
                     'query_var'         => true,
+                    'public'            => true,
                     'rewrite'           => array( 'slug' => 'city' )
                 );
 	
