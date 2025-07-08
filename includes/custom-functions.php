@@ -268,6 +268,78 @@ add_action('save_post', 'save_event_meta_data');
 
 function event_submission_form() {
     ob_start(); ?>
+    <style>
+/* Layout */
+#eventForm {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 24px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Input styles */
+#eventForm input,
+#eventForm select {
+    width: 100%;
+    padding: 10px 12px;
+    margin-top: 6px;
+    margin-bottom: 12px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 15px;
+    box-sizing: border-box;
+    transition: border-color 0.3s;
+}
+
+#eventForm input:focus,
+#eventForm select:focus {
+    border-color: #007bff;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(0,123,255,0.2);
+}
+
+/* Error messages */
+.error {
+    color: red;
+    font-size: 0.9em;
+    margin-top: -10px;
+    margin-bottom: 10px;
+}
+
+/* Labels */
+#eventForm label {
+    font-weight: 600;
+    display: block;
+    margin-top: 12px;
+}
+
+/* Button */
+#eventForm button[type="submit"] {
+    width: 100%;
+    padding: 12px;
+    background-color: #007bff;
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+#eventForm button[type="submit"]:hover {
+    background-color: #0056b3;
+}
+
+/* Hide honeypot */
+#eventForm input[name="honeypot"] {
+    display: none;
+}
+</style>
+
     <form id="eventForm" enctype="multipart/form-data">
         <input type="text" name="title" placeholder="Event Title"  /><br>
 
@@ -330,6 +402,11 @@ add_action('rest_api_init', function() {
         'callback' => 'handle_event_submission',
         'permission_callback' => '__return_true'
     ]);
+    register_rest_route('v1', '/events', [
+        'methods' => 'GET',
+        'callback' => 'get_filtered_events',
+        'permission_callback' => '__return_true',
+    ]);
 });
 
 function handle_event_submission(WP_REST_Request $request) {
@@ -382,7 +459,69 @@ function handle_event_submission(WP_REST_Request $request) {
     return ['success' => true, 'post_id' => $post_id];
 }
 
+/*
+ * Show upcoming event listing 
+ */
 
+function get_filtered_events($request) {
+    global $wpdb;
+
+    // Basic IP rate limiting (next section)
+    if (!check_ip_rate_limit()) {
+        return new WP_REST_Response(['error' => 'Rate limit exceeded'], 429);
+    }
+
+    $city = sanitize_text_field($request['city'] ?? '');
+    $type = sanitize_text_field($request['type'] ?? '');
+
+    $meta_query = [
+        [
+            'key'     => '_event_start',
+            'value'   => current_time('Y-m-d H:i:s'),
+            'compare' => '>=',
+            'type'    => 'DATETIME',
+        ],
+    ];
+
+    $tax_query = [];
+
+    if ($city) {
+        $tax_query[] = [
+            'taxonomy' => 'city',
+            'field'    => 'slug',
+            'terms'    => $city,
+        ];
+    }
+
+    if ($type) {
+        $tax_query[] = [
+            'taxonomy' => 'event_type',
+            'field'    => 'slug',
+            'terms'    => $type,
+        ];
+    }
+
+    $args = [
+        'post_type'      => 'event',
+        'post_status'    => 'publish',
+        'meta_query'     => $meta_query,
+        'tax_query'      => $tax_query,
+        'posts_per_page' => 10,
+    ];
+
+    $query = new WP_Query($args);
+    $events = [];
+
+    foreach ($query->posts as $post) {
+        $events[] = [
+            'id'    => $post->ID,
+            'title' => $post->post_title,
+            'url'   => get_permalink($post),
+        ];
+    }
+
+    return rest_ensure_response($events);
+}
 
 
 /* 
@@ -681,3 +820,181 @@ function add_custom_event_roles() {
     ]);
 }
 add_action('init', 'add_custom_event_roles');
+function add_event_caps_to_admin() {
+    $roles = ['administrator']; // you can add other roles here, like 'editor', 'limited_author'
+
+    foreach ($roles as $role_name) {
+        $role = get_role($role_name);
+        if (!$role) continue;
+
+        $caps = [
+            'edit_event',
+            'read_event',
+            'delete_event',
+            'edit_events',
+            'edit_others_events',
+            'publish_events',
+            'read_private_events',
+            'delete_events',
+            'delete_private_events',
+            'delete_published_events',
+            'delete_others_events',
+            'edit_private_events',
+            'edit_published_events',
+        ];
+
+        foreach ($caps as $cap) {
+            $role->add_cap($cap);
+        }
+    }
+}
+add_action('admin_init', 'add_event_caps_to_admin');
+
+/*
+ * Sidebar Widget with Random Upcoming Event
+ */
+
+class Random_Event_Widget extends WP_Widget {
+    function __construct() {
+        parent::__construct('random_event_widget', 'Random Upcoming Event');
+    }
+
+    function widget($args, $instance) {
+        $event = get_transient('random_event_widget');
+
+        if (!$event) {
+            $query = new WP_Query([
+                'post_type' => 'event',
+                'posts_per_page' => 1,
+                'orderby' => 'rand',
+                'meta_query' => [[
+                    'key' => '_event_start',
+                    'value' => current_time('Y-m-d H:i:s'),
+                    'compare' => '>=',
+                    'type' => 'DATETIME'
+                ]]
+            ]);
+
+            if ($query->have_posts()) {
+                $event = $query->posts[0];
+                set_transient('random_event_widget', $event, 600);
+            }
+        }
+
+        if ($event) {
+            $link = get_permalink($event->ID);
+            $nonce = wp_create_nonce('join_event_' . $event->ID);
+
+            echo '<div class="random-event-widget">';
+            echo '<h4>' . esc_html($event->post_title) . '</h4>';
+            echo '<p><a href="' . esc_url($link) . '">View Event</a></p>';
+            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+            echo '<input type="hidden" name="event_id" value="' . esc_attr($event->ID) . '">';
+            echo '<input type="hidden" name="nonce" value="' . esc_attr($nonce) . '">';
+            echo '<input type="hidden" name="action" value="join_event">';
+            echo '<button type="submit">Join Event</button>';
+            echo '</form>';
+            echo '</div>';
+        }
+    }
+}
+add_action('widgets_init', fn() => register_widget('Random_Event_Widget'));
+
+
+/*
+ * Audit Trail System
+ */
+
+function create_event_log_table() {
+    global $wpdb;
+    $table = $wpdb->prefix . 'event_logs';
+
+    $sql = "CREATE TABLE IF NOT EXISTS $table (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        event_id BIGINT NOT NULL,
+        user_id BIGINT NOT NULL,
+        action VARCHAR(20),
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        changes LONGTEXT
+    ) {$wpdb->get_charset_collate()};";
+
+    require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+    dbDelta($sql);
+}
+add_action('after_switch_theme', 'create_event_log_table');
+
+
+add_action('save_post_event', function ($post_id, $post, $update) {
+    if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
+    if (!$update) return;
+
+    $old = get_post_meta($post_id, '_event_snapshot', true) ?: [];
+    $new = [
+        'title' => $post->post_title,
+        'start' => get_post_meta($post_id, '_event_start', true),
+        'end' => get_post_meta($post_id, '_event_end', true),
+        // 'venue' => get_post_meta($post_id, '_event_venue', true),
+    ];
+
+    $diff = array_diff_assoc($new, $old);
+    if (!empty($diff)) {
+        global $wpdb;
+        $wpdb->insert("{$wpdb->prefix}event_logs", [
+            'event_id' => $post_id,
+            'user_id' => get_current_user_id(),
+            'action' => 'edit',
+            'changes' => wp_json_encode($diff),
+        ]);
+        update_post_meta($post_id, '_event_snapshot', $new);
+    }
+}, 10, 3);
+
+/*
+ *  QR Code Generation on Event Publish
+ */
+add_action('publish_event', function ($post_id) {
+    if (get_post_meta($post_id, '_event_qr', true)) return;
+
+    $event_url = get_permalink($post_id);
+    $upload_dir = wp_upload_dir();
+    $filename = 'qr_event_' . $post_id . '.png';
+    $filepath = $upload_dir['path'] . '/' . $filename;
+
+    // Generate QR code using Google API (or use a library like PHP QR Code)
+    $qr_url = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' . urlencode($event_url);
+    $image = file_get_contents($qr_url);
+
+    if ($image) {
+        file_put_contents($filepath, $image);
+
+        $filetype = wp_check_filetype($filename, null);
+        $attachment = [
+            'guid'           => $upload_dir['url'] . '/' . basename($filename),
+            'post_mime_type' => $filetype['type'],
+            'post_title'     => 'QR for Event ' . $post_id,
+            'post_status'    => 'inherit'
+        ];
+
+        $attach_id = wp_insert_attachment($attachment, $filepath, $post_id);
+        require_once ABSPATH . 'wp-admin/includes/image.php';
+        wp_generate_attachment_metadata($attach_id, $filepath);
+        wp_update_attachment_metadata($attach_id, []);
+
+        update_post_meta($post_id, '_event_qr', $attach_id);
+    }
+});
+
+
+add_action('add_meta_boxes', function () {
+    add_meta_box('event_qr', 'Event QR Code', function ($post) {
+        $qr_id = get_post_meta($post->ID, '_event_qr', true);
+        if ($qr_id) {
+            echo '<div >';
+            echo '<img src="'.wp_get_attachment_image_url($qr_id).'" style="max-width:100%">';
+            // echo wp_get_attachment_image($qr_id, 'thumbnail');
+            echo '</div>';
+        } else {
+            echo 'QR code will be generated on publish.';
+        }
+    }, 'event', 'side');
+});

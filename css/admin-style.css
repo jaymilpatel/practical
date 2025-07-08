@@ -1,0 +1,56 @@
+label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #333;
+}
+
+input[type="text"],
+input[type="email"],
+input[type="url"],
+input[type="number"],
+input[type="datetime-local"],
+select {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 12px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 16px;
+    box-sizing: border-box;
+    transition: border-color 0.3s;
+}
+
+input:focus,
+select:focus {
+    border-color: #007cba;
+    outline: none;
+}
+
+h3 {
+    margin-top: 24px;
+    margin-bottom: 10px;
+    font-size: 20px;
+    color: #007cba;
+}
+
+.error-msg {
+    font-size: 14px;
+    color: red;
+    margin-top: -10px;
+    margin-bottom: 10px;
+}
+
+#offline_fields,
+#online_fields {
+    margin-bottom: 20px;
+}
+
+br {
+    display: none;
+}
+
+/* Optional: Add some spacing between sections */
+section {
+    margin-bottom: 24px;
+}

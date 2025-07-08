@@ -8,6 +8,8 @@ function demotheme_admin_scripts() {
     global $wp_version;
     // Load our admin stylesheet.
     wp_enqueue_style( 'demotheme-admin-style', get_template_directory_uri() . '/css/admin-style.css' );
+    // wp_enqueue_style( 'demotheme-tailwindcss-style','https://cdn.tailwindcss.com/3.4.16' );
+    // wp_enqueue_script( 'demotheme-tailwindcss-script',  'https://cdn.tailwindcss.com', array(),time());
     // Load our admin script.
     wp_enqueue_script( 'demotheme-admin-script', get_template_directory_uri() . '/js/admin-script.js', array(),time());
     //localize admin script
